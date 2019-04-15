@@ -1,0 +1,8 @@
+*\#*
+*~
+*.bin
+*.map
+*.elf
+*.hex
+local.mk
+*.o
