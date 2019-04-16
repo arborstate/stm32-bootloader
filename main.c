@@ -1,9 +1,9 @@
 
 #include "stm32f334x8.h"
 
-#include "can.h"
+#include "bxcan.h"
 
-can_state_t caniface;
+bxcan_state_t caniface;
 
 void
 main(void)
@@ -41,8 +41,8 @@ main(void)
 		NVIC_EnableIRQ(CAN_RX1_IRQn);
 		NVIC_EnableIRQ(CAN_SCE_IRQn);
 
-		can_init(&caniface, CAN);
-		can_reconfigure(&caniface);
+		bxcan_init(&caniface, CAN);
+		bxcan_reconfigure(&caniface);
 	}
 
 	// Make sure we're not routing anything to the MCO.

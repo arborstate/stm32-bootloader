@@ -1,6 +1,6 @@
 #include "stm32f334x8.h"
 
-#include "can.h"
+#include "bxcan.h"
 
 void
 CAN_TX_IRQHandler(void)
@@ -18,13 +18,14 @@ CAN_SCE_IRQHandler(void)
 }
 
 int
-can_init(can_state_t *state, CAN_TypeDef *hw)
+bxcan_init(bxcan_state_t *state, CAN_TypeDef *hw)
 {
-	memset(state, 0, sizeof(can_state_t));
+	memset(state, 0, sizeof(bxcan_state_t));
 	state->hw = hw;
 }
 
-int can_reconfigure(can_state_t *state)
+int
+bxcan_reconfigure(bxcan_state_t *state)
 {
 	// Make sure we're not asleep.
 	state->hw->MCR &= ~CAN_MCR_SLEEP;
