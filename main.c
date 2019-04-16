@@ -1,14 +1,15 @@
+
 #include "stm32f334x8.h"
 
+#include "can.h"
+
+can_state_t caniface;
 
 void
 main(void)
 {
-	// Turn on GPIOA
-	RCC->AHBENR |= 1 << 17;
-
-	// Turn on GPIOF
-	RCC->AHBENR |= 1 << 22;
+	// Turn on some important hardware.
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOFEN | RCC_AHBENR_CRCEN;
 
 	// Set the MCO pull-up high to see we're alive.
 	GPIOA->PUPDR = 1 << 16;
@@ -16,6 +17,36 @@ main(void)
 	// Turn on the HSE.
 	RCC->CR |= RCC_CR_HSEON;
 	while (!(RCC->CR & RCC_CR_HSERDY)) {}
+
+	// Turn on the SYSCFG clock.
+	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+	// Setup the CAN interface.
+	{
+		// Reset the CAN peripheral.
+		RCC->APB1RSTR |= RCC_APB1RSTR_CANRST;
+		RCC->APB1RSTR &= ~RCC_APB1RSTR_CANRST;
+
+		// Enable CAN clock.
+		RCC->APB1ENR |= RCC_APB1ENR_CANEN;
+
+		// Allow interrupts - XXX Check these priorities!
+		NVIC_SetPriority(CAN_TX_IRQn, 5);
+		NVIC_SetPriority(CAN_RX0_IRQn, 5);
+		NVIC_SetPriority(CAN_RX1_IRQn, 5);
+		NVIC_SetPriority(CAN_SCE_IRQn, 5);
+
+		NVIC_EnableIRQ(CAN_TX_IRQn);
+		NVIC_EnableIRQ(CAN_RX0_IRQn);
+		NVIC_EnableIRQ(CAN_RX1_IRQn);
+		NVIC_EnableIRQ(CAN_SCE_IRQn);
+
+		can_init(&caniface, CAN);
+		can_reconfigure(&caniface);
+	}
+
+	// Make sure we're not routing anything to the MCO.
+	RCC->CFGR &= ~RCC_CFGR_MCO_Msk;
 
 	// Enable the MCO pin (PA8) AF0
 	GPIOA->AFR[1] &= ~0xF;
