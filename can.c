@@ -33,6 +33,9 @@ int can_reconfigure(can_state_t *state)
 	state->hw->MCR |= CAN_MCR_INRQ;
 	do {} while (!(state->hw->MCR & CAN_MSR_INAK));
 
+	// Turn on silent loopback and 125k (per http://bittiming.can-wiki.info/)
+	state->hw->BTR = CAN_BTR_LBKM | CAN_BTR_SILM | 0x1C003;
+
 	// Get out of init mode.
 	state->hw->MCR &= ~CAN_MCR_INRQ;
 	do {} while (state->hw->MCR & CAN_MSR_INAK);
