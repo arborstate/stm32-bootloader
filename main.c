@@ -1,7 +1,7 @@
 
 #include "stm32f334x8.h"
 
-#include "gpio.h"
+#include "hwutil.h"
 #include "bxcan.h"
 
 bxcan_state_t caniface;

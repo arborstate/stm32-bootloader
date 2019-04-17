@@ -1,5 +1,5 @@
-#ifndef __GPIO_H__
-#define __GPIO_H__
+#ifndef __HWUTIL_H__
+#define __HWUTIL_H__
 
 #define _gpio_afr(gpio, pin, func)					\
 	gpio->AFR[pin >> 3] =						\
@@ -10,4 +10,4 @@
 	GPIOC->MODER &= ~(0x3 << (pin * 2)); \
 	GPIOC->MODER |= (mode << (pin * 2))
 
-#endif /* __GPIO_H__ */
+#endif /* __HWUTIL_H__ */
