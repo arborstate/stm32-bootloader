@@ -7,7 +7,7 @@
 		((func & 0xF) << (4 * (pin % 8)))
 
 #define _gpio_moder(gpio, pin, mode) \
-	GPIOC->MODER &= ~(0x3 << (pin * 2)); \
-	GPIOC->MODER |= (mode << (pin * 2))
+	gpio->MODER &= ~(0x3 << (pin * 2)); \
+	gpio->MODER |= (mode << (pin * 2))
 
 #endif /* __HWUTIL_H__ */
