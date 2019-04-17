@@ -6,14 +6,20 @@
 
 bxcan_state_t caniface;
 
-#define _FCK 8000000U
 
 #define _SET_REG(reg, field, val) reg = (reg & ~(field ## _Msk)) | (val << (field ## _Pos))
+
+struct {
+	uint32_t hclk;
+	uint32_t pclk1;
+	uint32_t pclk2;
+} clock_info;
 
 void
 main(void)
 {
 
+	// Turn on the MCO so we can measure the clock.
 	{
 		// Turn on some important hardware.
 		RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOFEN | RCC_AHBENR_CRCEN;
@@ -21,6 +27,20 @@ main(void)
 		// Set the MCO pull-up high to see we're alive.
 		GPIOA->PUPDR = 1 << 16;
 
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 0);
+
+		// Enable the MCO pin (PA8) AF0
+		_gpio_afr(GPIOA, 8, 0);
+		_gpio_moder(GPIOA, 8, 2);
+
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCOPRE, 0);
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLNODIV, 0);
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 7);
+	}
+
+
+	// Enable the HSE.
+	{
 		// Turn on the HSE.
 		RCC->CR |= RCC_CR_HSEON;
 		while (!(RCC->CR & RCC_CR_HSERDY)) {}
@@ -31,17 +51,40 @@ main(void)
 		// Turn off the PLL.
 		RCC->CR &= ~RCC_CR_PLLON;
 
-		// Attach PLL to (HSE/2) * 9 and HCLK = SYSCLK / 1
-		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 1);
-		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7);
-		_SET_REG(RCC->CFGR, RCC_CFGR_PLLSRC, 1);
+		// Attach PLL to (HSE/2) * 9 = 72 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLSRC, 1); // PLL fed HSE
+		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 0); // PLL fed HSE / 1
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7); // PLL * 9
 
+		// HCLK = SYSCLK / 2
+		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0); //
+
+		// Configure The Peripheral PCLK/fClk
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 0); // APB1 = HCLK
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE2, 0); // APB2 = HCLK
+
+		// Turn on the PLL.
 		RCC->CR |= RCC_CR_PLLON;
 		do {} while(!(RCC->CR & RCC_CR_PLLRDY));
 
-		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 1);
+		// Adjust the flash wait states and pre-fetch buffer
+		// before we boost up clock frequency.
+		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 1);
+		_SET_REG(FLASH->ACR, FLASH_ACR_LATENCY, 2);
+		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 0);
 
+		// Wait for the prefetch buffer to be online.
+		do {} while (!(FLASH->ACR & FLASH_ACR_PRFTBS));
+
+
+		// Switch the sysclk from the HSI to PLL @ 72 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 2);
+
+		clock_info.hclk = 72000000U;
+		clock_info.pclk1 = clock_info.hclk;
+		clock_info.pclk2 = clock_info.hclk;
 	}
+
 
 	// Setup USART3
 	{
@@ -50,23 +93,23 @@ main(void)
 		_gpio_afr(GPIOC, 10, 7);
 		_gpio_moder(GPIOC, 10, 0x2);
 
-		// RX on PC11
+		// RX on PC1
 		_gpio_afr(GPIOC, 11, 7);
 		_gpio_moder(GPIOC, 11, 0x2);
 
 		// Enable the USART3 clock.
 		RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
 		// Set the outgoing bit rate.
-		USART3->BRR = _FCK / 38400;
+		USART3->BRR = clock_info.pclk1 / 38400;
 
 		// Turn on the transmitter.
 		// Turn on the USART.
 		USART3->CR1 |= USART_CR1_UE | USART_CR1_TE;
 
-		const char *_msg = "hey you guys! ";
-
 		while (1) {
-			for (int i = 0; i < 14; i++) {
+			const char *_msg = "hey you guys!\r\n";
+
+			for (int i = 0; i < 15; i++) {
 				do {} while (!(USART3->ISR & USART_ISR_TXE));
 				USART3->TDR = _msg[i];
 			}
@@ -96,18 +139,6 @@ main(void)
 		bxcan_init(&caniface, CAN);
 		bxcan_reconfigure(&caniface);
 	}
-
-	// Make sure we're not routing anything to the MCO.
-	RCC->CFGR &= ~RCC_CFGR_MCO_Msk;
-
-	// Enable the MCO pin (PA8) AF0
-	GPIOA->AFR[1] &= ~0xF;
-
-	// Turn on Alternate Functions
-	GPIOA->MODER |= 0x2 << 16;
-
-	// Turn on MCO for the HSI.
-	RCC->CFGR |= RCC_CFGR_MCO_PLL;
 
 	// Stay Here, Forever.
 	while (1) {
