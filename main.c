@@ -31,7 +31,7 @@ main(void)
 		// Turn off the PLL.
 		RCC->CR &= ~RCC_CR_PLLON;
 
-		// Attach PLL to HSE/2 * 9;
+		// Attach PLL to (HSE/2) * 9 and HCLK = SYSCLK / 1
 		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 1);
 		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7);
 		_SET_REG(RCC->CFGR, RCC_CFGR_PLLSRC, 1);
