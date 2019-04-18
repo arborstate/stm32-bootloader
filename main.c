@@ -86,9 +86,9 @@ main(void)
 
 		// Adjust the flash wait states and pre-fetch buffer
 		// before we boost up the SYSCLK frequency.
+		_SET_REG(FLASH->ACR, FLASH_ACR_HLFCYA, 0);
 		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 1);
 		_SET_REG(FLASH->ACR, FLASH_ACR_LATENCY, 2);
-		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 0);
 
 		// Wait for the prefetch buffer to be online.
 		do {} while (!(FLASH->ACR & FLASH_ACR_PRFTBS));
