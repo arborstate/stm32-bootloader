@@ -25,12 +25,12 @@ CPPFLAGS	=	$(INCLUDES) $(DEFINES)
 LIBS		=	-L/usr/lib/newlib-nano/arm-none-eabi/lib/thumb/v7e-m -lc -lgcc
 
 BL_TARGET	=	bl.elf bl.map
-BL_CFILES	=	bxcan.c main.c system_stm32f3xx.c
+BL_CFILES	=	system_stm32f3xx.c bxcan.c main.c
 BL_SFILES	=	startup_stm32f334x8.s
 BL_SOURCE	=	$(BL_CFILES) $(BL_SFILES)
-BL_OBJECTS 	=	$(BL_CFILES:.c=.o) $(BL_SFILES:.s=.o)
+BL_OBJECTS 	=	$(BL_SFILES:.s=.o) $(BL_CFILES:.c=.o)
 OBJECTS		+=	$(BL_OBJECTS)
-TARGETS		+=	$(BL_TARGET) $(BL_TARGET:.elf=.bin)
+TARGETS		+=	$(BL_TARGET) $(BL_TARGET:.elf=.bin) $(BL_TARGET:.elf=.list)
 
 
 all: $(TARGETS)
@@ -44,6 +44,9 @@ flash:	$(BL_TARGET:.elf=.bin)
 
 %.bin: %.elf
 	$(OBJCOPY) -O binary $< $@
+
+%.list: %.elf
+	$(OBJDUMP) -S $< > $@
 
 clean:
 	$(RM) $(TARGETS) $(OBJECTS)
