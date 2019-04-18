@@ -28,14 +28,18 @@ main(void)
 		GPIOA->PUPDR = 1 << 16;
 
 		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 0);
-
 		// Enable the MCO pin (PA8) AF0
 		_gpio_afr(GPIOA, 8, 0);
 		_gpio_moder(GPIOA, 8, 2);
 
-		_SET_REG(RCC->CFGR, RCC_CFGR_MCOPRE, 0);
-		_SET_REG(RCC->CFGR, RCC_CFGR_PLLNODIV, 0);
-		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 7);
+		// Don't divide the PLL.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLNODIV, 1);
+
+		// Divide the MCO output by 2.
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCOPRE, 1);
+
+		// Route the SYSCLK to the MCO.
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 4);
 	}
 
 
@@ -51,24 +55,27 @@ main(void)
 		// Turn off the PLL.
 		RCC->CR &= ~RCC_CR_PLLON;
 
-		// Attach PLL to (HSE/2) * 9 = 72 MHz.
+		// Attach PLL to HSE * 9 = 72 MHz.
 		_SET_REG(RCC->CFGR, RCC_CFGR_PLLSRC, 1); // PLL fed HSE
-		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 0); // PLL fed HSE / 1
-		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7); // PLL * 9
+		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 0); // With no scaling.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7); // Multiplied by 9.
 
-		// HCLK = SYSCLK / 2
-		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0); //
+		// HCLK = SYSCLK
+		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0);
+		clock_info.hclk = 72000000U;
 
 		// Configure The Peripheral PCLK/fClk
 		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 0); // APB1 = HCLK
+		clock_info.pclk1 = clock_info.hclk;
 		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE2, 0); // APB2 = HCLK
+		clock_info.pclk2 = clock_info.hclk;
 
 		// Turn on the PLL.
 		RCC->CR |= RCC_CR_PLLON;
 		do {} while(!(RCC->CR & RCC_CR_PLLRDY));
 
 		// Adjust the flash wait states and pre-fetch buffer
-		// before we boost up clock frequency.
+		// before we boost up the SYSCLK frequency.
 		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 1);
 		_SET_REG(FLASH->ACR, FLASH_ACR_LATENCY, 2);
 		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 0);
@@ -76,13 +83,8 @@ main(void)
 		// Wait for the prefetch buffer to be online.
 		do {} while (!(FLASH->ACR & FLASH_ACR_PRFTBS));
 
-
-		// Switch the sysclk from the HSI to PLL @ 72 MHz.
+		// Source SYSCLK from the PLL.
 		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 2);
-
-		clock_info.hclk = 72000000U;
-		clock_info.pclk1 = clock_info.hclk;
-		clock_info.pclk2 = clock_info.hclk;
 	}
 
 
