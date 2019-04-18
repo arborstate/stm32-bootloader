@@ -28,31 +28,6 @@ struct {
 void
 main(void)
 {
-
-	// Turn on the MCO so we can measure the clock.
-	{
-		// Turn on some important hardware.
-		RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOFEN | RCC_AHBENR_CRCEN;
-
-		// Set the MCO pull-up high to see we're alive.
-		GPIOA->PUPDR = 1 << 16;
-
-		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 0);
-		// Enable the MCO pin (PA8) AF0
-		_gpio_afr(GPIOA, 8, 0);
-		_gpio_moder(GPIOA, 8, 2);
-
-		// Don't divide the PLL.
-		_SET_REG(RCC->CFGR, RCC_CFGR_PLLNODIV, 1);
-
-		// Divide the MCO output by 2.
-		_SET_REG(RCC->CFGR, RCC_CFGR_MCOPRE, 1);
-
-		// Route the SYSCLK to the MCO.
-		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 4);
-	}
-
-
 	// Enable the HSE.
 	{
 		// Turn on the HSE.
@@ -97,6 +72,29 @@ main(void)
 		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 2);
 	}
 
+#ifdef _OUTPUT_MCO
+	// Turn on the MCO so we can measure the clock.
+	{
+		_gpio_moder(GPIOA, 8, 2);
+		// Set the MCO pull-up high to see we're alive.
+		GPIOA->PUPDR = 1 << 16;
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 0);
+
+		RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+
+		// Enable the MCO pin (PA8) AF0
+		_gpio_afr(GPIOA, 8, 0);
+
+		// Don't divide the PLL.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLNODIV, 1);
+
+		// Divide the MCO output by 2.
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCOPRE, 1);
+
+		// Route the SYSCLK to the MCO.
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 4);
+	}
+#endif
 
 	// Setup USART3
 	{
