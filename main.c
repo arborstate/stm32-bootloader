@@ -9,6 +9,16 @@ bxcan_state_t caniface;
 
 #define _SET_REG(reg, field, val) reg = (reg & ~(field ## _Msk)) | (val << (field ## _Pos))
 
+void
+SysTick_Handler(void)
+{
+
+	do {} while (!(USART3->ISR & USART_ISR_TXE));
+	USART3->TDR = '>';
+	return;
+}
+
+
 struct {
 	uint32_t hclk;
 	uint32_t pclk1;
@@ -108,14 +118,20 @@ main(void)
 		// Turn on the USART.
 		USART3->CR1 |= USART_CR1_UE | USART_CR1_TE;
 
-		while (1) {
-			const char *_msg = "hey you guys!\r\n";
+		const char *_msg = "hey you guys!\r\n";
 
-			for (int i = 0; i < 15; i++) {
-				do {} while (!(USART3->ISR & USART_ISR_TXE));
-				USART3->TDR = _msg[i];
-			}
+		for (int i = 0; i < 15; i++) {
+			do {} while (!(USART3->ISR & USART_ISR_TXE));
+			USART3->TDR = _msg[i];
 		}
+	}
+
+	// Turn on systick.
+	{
+		SysTick->CTRL = 0;
+		SysTick->LOAD = 0xFFFFFF - 1;
+		SysTick->VAL = 0;
+		SysTick->CTRL = 1 << SysTick_CTRL_ENABLE_Pos | 1 << SysTick_CTRL_TICKINT_Pos | 1 << SysTick_CTRL_CLKSOURCE_Pos;
 	}
 
 	// Setup the CAN interface.
