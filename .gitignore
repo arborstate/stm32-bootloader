@@ -6,3 +6,4 @@
 *.hex
 local.mk
 *.o
+*.list
