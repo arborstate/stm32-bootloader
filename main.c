@@ -28,6 +28,13 @@ struct {
 void
 main(void)
 {
+	// Start assuming the HSI is on.
+	{
+		clock_info.hclk = 8000000U;
+		clock_info.pclk1 = 8000000U;
+		clock_info.pclk2 = 8000000U;
+	}
+
 	// Enable the HSE.
 	{
 		// Turn on the HSE.
