@@ -127,8 +127,10 @@ main(void)
 	// Turn on systick.
 	{
 		SysTick->CTRL = 0;
-		SysTick->LOAD = 0xFFFFFF - 1;
 		SysTick->VAL = 0;
+		// Reload every 1ms.
+		SysTick->LOAD = (clock_info.hclk / 1000) - 1;
+		// Tie AHB/HCLK into SysTick, and turn on interrupts.
 		SysTick->CTRL = 1 << SysTick_CTRL_ENABLE_Pos | 1 << SysTick_CTRL_TICKINT_Pos | 1 << SysTick_CTRL_CLKSOURCE_Pos;
 	}
 
