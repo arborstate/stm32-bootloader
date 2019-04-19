@@ -64,15 +64,19 @@ main(void)
 		// We're going to use the PLL as the SYSCLK.
 		clock_info.sysclk = clock_info.pllclk;
 
-		// HCLK = SYSCLK
+		// HCLK (AHB) = SYSCLK
 		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0);
 		clock_info.hclk = clock_info.sysclk;
 		SystemCoreClock = clock_info.hclk;
 
-		// Configure The Peripheral PCLK/fClk
-		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 4); // APB1 = HCLK / 2
+		// PCLK1 (APB1) - Slow Peripheral Clock
+		// Note: The datasheet caps the speed of the PCLK1 at 36 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 4); // PCLK1 = HCLK / 2
 		clock_info.pclk1 = clock_info.hclk / 2;
-		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE2, 0); // APB2 = HCLK
+
+		// PCLK2 (APB2) - Fast Peripheral Clock
+		// Note: This clock can run at 72 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE2, 0); // PCLK2 = HCLK
 		clock_info.pclk2 = clock_info.hclk;
 
 		// Turn on the PLL.
