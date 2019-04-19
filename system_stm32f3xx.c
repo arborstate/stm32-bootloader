@@ -105,6 +105,7 @@ void system_init(void)
 
 		// Source SYSCLK from the PLL.
 		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 2);
+		do {} while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);
 	}
 #endif
 
