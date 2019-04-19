@@ -35,7 +35,8 @@ main(void)
 		clock_info.pclk2 = 8000000U;
 	}
 
-	// Enable the HSE.
+#ifdef _FAST_AND_THE_FURIOUS
+	// Enable the 8 MHz HSE with the PLL at 72 MHz.
 	{
 		// Turn on the HSE.
 		RCC->CR |= RCC_CR_HSEON;
@@ -57,8 +58,8 @@ main(void)
 		clock_info.hclk = 72000000U;
 
 		// Configure The Peripheral PCLK/fClk
-		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 0); // APB1 = HCLK
-		clock_info.pclk1 = clock_info.hclk;
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 4); // APB1 = HCLK / 2
+		clock_info.pclk1 = clock_info.hclk / 2;
 		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE2, 0); // APB2 = HCLK
 		clock_info.pclk2 = clock_info.hclk;
 
@@ -78,6 +79,7 @@ main(void)
 		// Source SYSCLK from the PLL.
 		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 2);
 	}
+#endif
 
 #ifdef _OUTPUT_MCO
 	// Turn on the MCO so we can measure the clock.
