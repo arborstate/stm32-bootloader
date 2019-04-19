@@ -12,9 +12,9 @@ bxcan_state_t caniface;
 void
 SysTick_Handler(void)
 {
-
 	do {} while (!(USART3->ISR & USART_ISR_TXE));
 	USART3->TDR = '>';
+
 	return;
 }
 
