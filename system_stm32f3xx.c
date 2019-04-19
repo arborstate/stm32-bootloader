@@ -36,7 +36,6 @@ void system_init(void)
 
 	// Configure the SysClk to run off of the HSI.
 	_SET_REG(RCC->CFGR, RCC_CFGR_SW, 0);
-
 	do {} while ((RCC->CR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSI);
 
 	// Turn off the PLL.
