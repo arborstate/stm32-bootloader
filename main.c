@@ -20,6 +20,8 @@ SysTick_Handler(void)
 
 
 struct {
+	uint32_t pllclk;
+	uint32_t sysclk;
 	uint32_t hclk;
 	uint32_t pclk1;
 	uint32_t pclk2;
@@ -30,9 +32,11 @@ main(void)
 {
 	// Start assuming the HSI is on.
 	{
+		clock_info.sysclk = 8000000U;
 		clock_info.hclk = 8000000U;
 		clock_info.pclk1 = 8000000U;
 		clock_info.pclk2 = 8000000U;
+		clock_info.pllclk = 0U;
 	}
 
 #ifdef _FAST_AND_THE_FURIOUS
@@ -52,10 +56,14 @@ main(void)
 		_SET_REG(RCC->CFGR, RCC_CFGR_PLLSRC, 1); // PLL fed HSE
 		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 0); // With no scaling.
 		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7); // Multiplied by 9.
+		clock_info.pllclk = 72000000U;
+
+		// We're going to use the PLL as the SYSCLK.
+		clock_info.sysclk = clock_info.pllclk;
 
 		// HCLK = SYSCLK
 		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0);
-		clock_info.hclk = 72000000U;
+		clock_info.hclk = clock_info.sysclk;
 
 		// Configure The Peripheral PCLK/fClk
 		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 4); // APB1 = HCLK / 2
