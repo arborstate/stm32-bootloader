@@ -1,70 +1,142 @@
-/*
- * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *   1. Redistributions of source code must retain the above copyright notice,
- *      this list of conditions and the following disclaimer.
- *   2. Redistributions in binary form must reproduce the above copyright notice,
- *      this list of conditions and the following disclaimer in the documentation
- *      and/or other materials provided with the distribution.
- *   3. Neither the name of STMicroelectronics nor the names of its contributors
- *      may be used to endorse or promote products derived from this software
- *      without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- ******************************************************************************
- */
-
+#include "system.h"
 #include "stm32f3xx.h"
 
+#ifndef VECT_TAB_OFFSET
 #define VECT_TAB_OFFSET  0x0
+#endif
 
-void SystemInit(void)
+// Keep this to be compatible with the rest of CMSIS-and-friends.
+uint32_t SystemCoreClock;
+clock_info_t clock_info;
+
+void system_init(void)
 {
-  /* FPU settings ------------------------------------------------------------*/
-  #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-    SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  /* set CP10 and CP11 Full Access */
-  #endif
+#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+	// Turn on CP10 and CP11
+	SCB->CPACR |= ((3UL << 10 * 2) | (3UL << 11 * 2));
+#endif
+	// Disable all interrupts.
+	RCC->CIR = 0U;
 
-  /* Reset the RCC clock configuration to the default reset state ------------*/
-  /* Set HSION bit */
-  RCC->CR |= 0x00000001U;
+	// Start assuming the HSI is on.
+	{
+		clock_info.sysclk = 8000000U;
+		clock_info.hclk = 8000000U;
+		SystemCoreClock = clock_info.hclk;
+		clock_info.pclk1 = 8000000U;
+		clock_info.pclk2 = 8000000U;
+		clock_info.pllclk = 0U;
+	}
 
-  /* Reset CFGR register */
-  RCC->CFGR &= 0xF87FC00CU;
+	// Turn the HSI is on.
+	_SET_REG(RCC->CR, RCC_CR_HSION, 1);
 
-  /* Reset HSEON, CSSON and PLLON bits */
-  RCC->CR &= 0xFEF6FFFFU;
+	// Wait until it's ready.
+	do {} while (!(RCC->CR & RCC_CR_HSIRDY));
 
-  /* Reset HSEBYP bit */
-  RCC->CR &= 0xFFFBFFFFU;
+	// Configure the SysClk to run off of the HSI.
+	_SET_REG(RCC->CFGR, RCC_CFGR_SW, 0);
 
-  /* Reset PLLSRC, PLLXTPRE, PLLMUL and USBPRE bits */
-  RCC->CFGR &= 0xFF80FFFFU;
+	do {} while ((RCC->CR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSI);
 
-  /* Reset PREDIV1[3:0] bits */
-  RCC->CFGR2 &= 0xFFFFFFF0U;
+	// Turn off the PLL.
+	_SET_REG(RCC->CR, RCC_CR_PLLON, 0);
+	// Turn off the clock security system.
+	_SET_REG(RCC->CR, RCC_CR_CSSON, 0);
+	// Turn off the HSE.
+	_SET_REG(RCC->CR, RCC_CR_HSEON, 0);
+	// Turn off the HSE bypass.
+	_SET_REG(RCC->CR, RCC_CR_HSEBYP, 0);
 
-  /* Reset USARTSW[1:0], I2CSW and TIMs bits */
-  RCC->CFGR3 &= 0xFF00FCCCU;
+	// Turn off any peripheral clock, PLL, and MCO config.
+	RCC->CFGR = 0U;
+	RCC->CFGR2 = 0U;
+	RCC->CFGR3 = 0U;
 
-  /* Disable all interrupts */
-  RCC->CIR = 0x00000000U;
+#ifdef _FAST_AND_THE_FURIOUS
+	// Enable the 8 MHz HSE with the PLL at 72 MHz.
+	{
+		// Turn on the HSE.
+		RCC->CR |= RCC_CR_HSEON;
+		while (!(RCC->CR & RCC_CR_HSERDY)) {}
+
+		// Turn on the SYSCFG clock.
+		RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+		// Turn off the PLL.
+		RCC->CR &= ~RCC_CR_PLLON;
+
+		// Attach PLL to HSE * 9 = 72 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLSRC, 1); // PLL fed HSE
+		_SET_REG(RCC->CFGR2, RCC_CFGR2_PREDIV, 0); // With no scaling.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLMUL, 7); // Multiplied by 9.
+		clock_info.pllclk = 72000000U;
+
+		// We're going to use the PLL as the SYSCLK.
+		clock_info.sysclk = clock_info.pllclk;
+
+		// HCLK (AHB) = SYSCLK
+		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0);
+		clock_info.hclk = clock_info.sysclk;
+		SystemCoreClock = clock_info.hclk;
+
+		// PCLK1 (APB1) - Slow Peripheral Clock
+		// Note: The datasheet caps the speed of the PCLK1 at 36 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 4); // PCLK1 = HCLK / 2
+		clock_info.pclk1 = clock_info.hclk / 2;
+
+		// PCLK2 (APB2) - Fast Peripheral Clock
+		// Note: This clock can run at 72 MHz.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE2, 0); // PCLK2 = HCLK
+		clock_info.pclk2 = clock_info.hclk;
+
+		// Turn on the PLL.
+		RCC->CR |= RCC_CR_PLLON;
+		do {} while(!(RCC->CR & RCC_CR_PLLRDY));
+
+		// Adjust the flash wait states and pre-fetch buffer
+		// before we boost up the SYSCLK frequency.
+		_SET_REG(FLASH->ACR, FLASH_ACR_HLFCYA, 0);
+		_SET_REG(FLASH->ACR, FLASH_ACR_PRFTBE, 1);
+		_SET_REG(FLASH->ACR, FLASH_ACR_LATENCY, 2);
+
+		// Wait for the prefetch buffer to be online.
+		do {} while (!(FLASH->ACR & FLASH_ACR_PRFTBS));
+
+		// Source SYSCLK from the PLL.
+		_SET_REG(RCC->CFGR, RCC_CFGR_SW, 2);
+	}
+#endif
+
+#ifdef _OUTPUT_MCO
+	// Turn on the MCO so we can measure the clock.
+	{
+		_gpio_moder(GPIOA, 8, 2);
+		// Set the MCO pull-up high to see we're alive.
+		GPIOA->PUPDR = 1 << 16;
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 0);
+
+		RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+
+		// Enable the MCO pin (PA8) AF0
+		_gpio_afr(GPIOA, 8, 0);
+
+		// Don't divide the PLL.
+		_SET_REG(RCC->CFGR, RCC_CFGR_PLLNODIV, 1);
+
+		// Divide the MCO output by 2.
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCOPRE, 1);
+
+		// Route the SYSCLK to the MCO.
+		_SET_REG(RCC->CFGR, RCC_CFGR_MCO, 4);
+	}
+#endif
 
 #ifdef VECT_TAB_SRAM
-  SCB->VTOR = SRAM_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
+	// Vectors From RAM
+	SCB->VTOR = SRAM_BASE | VECT_TAB_OFFSET;
 #else
-  SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
+	// Vectors From Flash
+	SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET;
 #endif
 }
