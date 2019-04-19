@@ -18,6 +18,8 @@ SysTick_Handler(void)
 	return;
 }
 
+// Keep this to be compatible with the rest of CMSIS-and-friends.
+uint32_t SystemCoreClock = 8000000U;
 
 struct {
 	uint32_t pllclk;
@@ -34,6 +36,7 @@ main(void)
 	{
 		clock_info.sysclk = 8000000U;
 		clock_info.hclk = 8000000U;
+		SystemCoreClock = clock_info.hclk;
 		clock_info.pclk1 = 8000000U;
 		clock_info.pclk2 = 8000000U;
 		clock_info.pllclk = 0U;
@@ -64,6 +67,7 @@ main(void)
 		// HCLK = SYSCLK
 		_SET_REG(RCC->CFGR, RCC_CFGR_HPRE, 0);
 		clock_info.hclk = clock_info.sysclk;
+		SystemCoreClock = clock_info.hclk;
 
 		// Configure The Peripheral PCLK/fClk
 		_SET_REG(RCC->CFGR, RCC_CFGR_PPRE1, 4); // APB1 = HCLK / 2
