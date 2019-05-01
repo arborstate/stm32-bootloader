@@ -27,7 +27,7 @@ struct _xmodem_state {
 	size_t bufpos;
 };
 
-char xmodem_ingest(struct _xmodem_state *s);
+char xmodem_ingest(struct _xmodem_state *s, char c);
 
 int
 xmodem_receive(USART_TypeDef *usart)
@@ -50,11 +50,9 @@ xmodem_receive(USART_TypeDef *usart)
 	while (1) {
 		if (usart->ISR & USART_ISR_RXNE) {
 			_RESET_TIMEOUT();
-			resp = xmodem_ingest(&state);
+			resp = xmodem_ingest(&state, state.usart->RDR);
 
 			if (resp != 0) {
-				state.idx = 0;
-				state.packetpos = 0;
 				usart_send(usart, resp);
 			}
 		}
@@ -78,9 +76,8 @@ xmodem_receive(USART_TypeDef *usart)
 }
 
 char
-xmodem_ingest(struct _xmodem_state *s)
+xmodem_ingest(struct _xmodem_state *s, char c)
 {
-	char c = s->usart->RDR;
 	char ret = 0;
 
 	switch (s->idx) {
@@ -93,20 +90,19 @@ xmodem_ingest(struct _xmodem_state *s)
 			break;
 		case 0x4:
 			// End of Transmission
-			s->seq = 1;
-			s->bufpos = 0;
-			return 0x06;
+			ret = 0x06;
+			goto complete;
 			break;
 		case 0x17:
 			// End of Transmission Block
 			// ACK
-			return 0x06;
+			ret = 0x06;
+			goto complete;
 			break;
 		case 0x18:
 			// Cancel
-			s->seq = 1;
-			s->bufpos = 0;
-			return 'C';
+			ret = 'C';
+			goto complete;
 			break;
 		default:
 			// NACK
@@ -150,21 +146,19 @@ xmodem_ingest(struct _xmodem_state *s)
 			s->bufpos += 1;
 		}
 		// ACK
-		return 0x06;
+		ret = 0x06;
+		goto next;
 		break;
 	default:
 		// Payload
 		s->crc ^= ((int)c) << 8;
-		{
-			int i = 8;
-			do
-			{
-				if  (s->crc & 0x8000) {
-					s->crc = (s->crc << 1) ^ 0x1021;
-				} else {
-					s->crc = s->crc << 1;
-				}
-			} while (--i);
+
+		for (int i = 0; i < 8; i++) {
+			if  (s->crc & 0x8000) {
+				s->crc = (s->crc << 1) ^ 0x1021;
+			} else {
+				s->crc = s->crc << 1;
+			}
 		}
 
 		s->packet[s->packetpos] = c;
@@ -176,7 +170,13 @@ xmodem_ingest(struct _xmodem_state *s)
 	s->idx %= 133;
 
 	return 0;
-
 nack:
-	return 0x15;
+	ret = 0x15;
+	goto next;
+complete:
+	s->seq = 1;
+	s->bufpos = 0;
+next:
+	s->idx = 0;
+	return ret;
 }
