@@ -7,12 +7,12 @@
 
 bxcan_state_t caniface;
 
+volatile uint32_t tick = 0;
 
 void
 SysTick_Handler(void)
 {
-	do {} while (!(USART3->ISR & USART_ISR_TXE));
-	USART3->TDR = '>';
+	tick += 1;
 
 	return;
 }
@@ -38,14 +38,7 @@ main(void)
 
 		// Turn on the transmitter.
 		// Turn on the USART.
-		USART3->CR1 |= USART_CR1_UE | USART_CR1_TE;
-
-		const char *_msg = "hey you guys!\r\n";
-
-		for (int i = 0; i < 15; i++) {
-			do {} while (!(USART3->ISR & USART_ISR_TXE));
-			USART3->TDR = _msg[i];
-		}
+		USART3->CR1 |= USART_CR1_UE | USART_CR1_TE | USART_CR1_RE;
 	}
 
 	// Turn on systick.
@@ -81,6 +74,8 @@ main(void)
 		bxcan_init(&caniface, CAN);
 		bxcan_reconfigure(&caniface);
 	}
+
+	xmodem_receive(USART3);
 
 	// Stay Here, Forever.
 	while (1) {

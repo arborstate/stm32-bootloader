@@ -12,7 +12,7 @@ OBJDUMP		=	$(CROSS)objdump
 AS		=	$(CROSS)as
 SIZE		=	$(CROSS)size
 MFLAGS		=	-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
-CFLAGS		= 	-Os -ggdb -falign-functions=16 -ffunction-sections -fdata-sections -fno-common -flto $(MFLAGS)
+CFLAGS		= 	-Os -g -falign-functions=16 -ffunction-sections -fdata-sections -fno-common -flto $(MFLAGS)
 ASFLAGS		=	$(MFLAGS)
 
 LDFLAGS		=	\
@@ -25,7 +25,7 @@ CPPFLAGS	=	$(INCLUDES) $(DEFINES)
 LIBS		=	-L/usr/lib/newlib-nano/arm-none-eabi/lib/thumb/v7e-m -lc -lgcc
 
 BL_TARGET	=	bl.elf bl.map
-BL_CFILES	=	system_stm32f3xx.c bxcan.c bl.c
+BL_CFILES	=	system_stm32f3xx.c bxcan.c xmodem.c bl.c
 BL_SFILES	=	startup_stm32f334x8.s
 BL_SOURCE	=	$(BL_CFILES) $(BL_SFILES)
 BL_OBJECTS 	=	$(BL_SFILES:.s=.o) $(BL_CFILES:.c=.o)
