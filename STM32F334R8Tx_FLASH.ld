@@ -53,6 +53,7 @@ SECTIONS
   .isr_vector :
   {
     . = ALIGN(4);
+    PROVIDE_HIDDEN (__isr_vector = .);
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH

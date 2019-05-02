@@ -1,9 +1,8 @@
 #include "system.h"
 #include "stm32f3xx.h"
 
-#ifndef VECT_TAB_OFFSET
-#define VECT_TAB_OFFSET  0x0
-#endif
+// Provided by the linker scripts.
+extern uint32_t __isr_vector;
 
 // Keep this to be compatible with the rest of CMSIS-and-friends.
 uint32_t SystemCoreClock;
@@ -132,11 +131,6 @@ void system_init(void)
 	}
 #endif
 
-#ifdef VECT_TAB_SRAM
-	// Vectors From RAM
-	SCB->VTOR = SRAM_BASE | VECT_TAB_OFFSET;
-#else
-	// Vectors From Flash
-	SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET;
-#endif
+	// Make sure vectors go to the right location.
+	SCB->VTOR = (uint32_t)&__isr_vector;
 }
