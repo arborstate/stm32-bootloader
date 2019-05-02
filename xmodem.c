@@ -4,74 +4,10 @@
 #include "stm32f334x8.h"
 #include "system.h"
 
-void
-usart_send(USART_TypeDef *usart, char c)
-{
-	do {} while (!(usart->ISR & USART_ISR_TXE));
-	usart->TDR = c;
-}
-
-extern volatile uint32_t tick;
-
-
-#define STATE_WAITING	0
-
-struct _xmodem_state {
-	uint8_t idx;
-	uint8_t seq;
-	int crc;
-	char packet[128];
-	size_t packetpos;
-};
-
-char xmodem_ingest(struct _xmodem_state *s, char c);
-
-int
-xmodem_receive(USART_TypeDef *usart)
-{
-	struct _xmodem_state state;
-	uint32_t timeout;
-
-#define _RESET_TIMEOUT() timeout = tick + (3 * 1000)
-	char resp = 'C';
-	int count = 0;
-
-	state.seq = 1;
-	state.idx = 0;
-
-	// Force a timeout.
-	timeout = 0;
-
-	while (1) {
-		if (usart->ISR & USART_ISR_RXNE) {
-			_RESET_TIMEOUT();
-			resp = xmodem_ingest(&state, usart->RDR);
-
-			if (resp != 0) {
-				usart_send(usart, resp);
-			}
-		}
-
-		if (tick >= timeout) {
-			_RESET_TIMEOUT();
-			if (resp != 0) {
-				usart_send(usart, resp);
-			}
-			count += 1;
-
-			if (count >= 3) {
-				resp = 'C';
-				state.seq = 1;
-				state.idx = 0;
-				count = 0;
-			}
-		}
-	}
-#undef _RESET_TIMEOUT
-}
+#include "xmodem.h"
 
 char
-xmodem_ingest(struct _xmodem_state *s, char c)
+xmodem_ingest(struct xmodem_state *s, char c)
 {
 	char ret = 0;
 

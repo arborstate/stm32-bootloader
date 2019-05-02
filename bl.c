@@ -4,6 +4,7 @@
 #include "system.h"
 #include "hwutil.h"
 #include "bxcan.h"
+#include "xmodem.h"
 
 bxcan_state_t caniface;
 
@@ -15,6 +16,57 @@ SysTick_Handler(void)
 	tick += 1;
 
 	return;
+}
+
+void
+usart_send(USART_TypeDef *usart, char c)
+{
+	do {} while (!(usart->ISR & USART_ISR_TXE));
+	usart->TDR = c;
+}
+
+int
+xmodem_receive(USART_TypeDef *usart)
+{
+	struct xmodem_state state;
+	uint32_t timeout;
+
+#define _RESET_TIMEOUT() timeout = tick + (3 * 1000)
+	char resp = 'C';
+	int count = 0;
+
+	state.seq = 1;
+	state.idx = 0;
+
+	// Force a timeout.
+	timeout = 0;
+
+	while (1) {
+		if (usart->ISR & USART_ISR_RXNE) {
+			_RESET_TIMEOUT();
+			resp = xmodem_ingest(&state, usart->RDR);
+
+			if (resp != 0) {
+				usart_send(usart, resp);
+			}
+		}
+
+		if (tick >= timeout) {
+			_RESET_TIMEOUT();
+			if (resp != 0) {
+				usart_send(usart, resp);
+			}
+			count += 1;
+
+			if (count >= 3) {
+				resp = 'C';
+				state.seq = 1;
+				state.idx = 0;
+				count = 0;
+			}
+		}
+	}
+#undef _RESET_TIMEOUT
 }
 
 void
@@ -75,9 +127,77 @@ main(void)
 		bxcan_reconfigure(&caniface);
 	}
 
+	// test_reflash();
+
+
+
 	xmodem_receive(USART3);
 
 	// Stay Here, Forever.
 	while (1) {
 	}
+}
+
+
+void
+test_reflash(void)
+{
+	// We should be entering this with the flash locked.
+	if (!(FLASH->CR & FLASH_CR_LOCK)) {
+		// We're not locked. Something is wrong.
+		return;
+	}
+
+	FLASH->KEYR = 0x45670123;
+	FLASH->KEYR = 0xCDEF89AB;
+
+	if (FLASH->CR & FLASH_CR_LOCK) {
+		// If we think we're still locked, something went wrong.
+		return;
+	}
+
+	// Page Erase
+	{
+		FLASH->CR |= FLASH_CR_PER;
+
+		// Let's play with the last page.
+		FLASH->AR = 0x0800F800;
+
+		// Kick off the erase.
+		FLASH->CR |= FLASH_CR_STRT;
+
+		// Wait while the flash module does its thing.
+		do {} while (FLASH->SR & FLASH_SR_BSY);
+
+		// Check for EOP in FLASH SR, and clear bit.
+		do {} while (!(FLASH->SR & FLASH_SR_EOP));
+
+		FLASH->SR &= ~FLASH_SR_EOP;
+	}
+
+	// Page Write
+	{
+		FLASH->CR |= FLASH_CR_PG;
+		const char *msg = "HEY YOU GUYS!!";
+		uint16_t v;
+		uint16_t *addr = (uint16_t *)0x0800F800;
+
+		for (int i = 0; i < ((strlen(msg) + 1) / 2); i++) {
+			v = msg[i * 2] | (msg[(i * 2) + 1] << 8);
+			*addr = v;
+			// Wait for the write to finish.
+			do {} while (FLASH->SR & FLASH_SR_BSY);
+
+			if (*addr != v) {
+				// We failed to write the value.  Bail.
+				goto lockit;
+			}
+
+			addr++;
+		}
+	}
+
+lockit:
+	// Lock flash memory by writing LOCK to FLASH_CR
+	FLASH->CR |= FLASH_CR_LOCK;
 }
