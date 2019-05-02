@@ -16,7 +16,7 @@ CFLAGS		= 	-Os -g -falign-functions=16 -ffunction-sections -fdata-sections -fno-
 ASFLAGS		=	$(MFLAGS)
 
 LDFLAGS		=	\
-			-Wl,-Map=./$(@:.elf=.map),--cref,--no-warn-mismatch,--script=./STM32F334R8Tx_FLASH.ld,--gc-sections,--defsym=__process_stack_size__=0x400,--defsym=__main_stack_size__=0x400 --specs=nosys.specs
+			-Wl,-Map=./$(@:.elf=.map),--cref,--no-warn-mismatch,--script=./STM32F334R8Tx_FLASH.ld,--gc-sections --specs=nosys.specs
 
 DEFINES		=	-DSTM32F334x8
 INCLUDES	=	-I$(CMSISDIR)/Include -I$(CMSISDIR)/Device/ST/STM32F3xx/Include
