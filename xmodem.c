@@ -6,6 +6,16 @@
 
 #include "xmodem.h"
 
+
+char
+xmodem_cancel(struct xmodem_state *s)
+{
+	s->seq = 1;
+	s->idx = 0;
+
+	return 'C';
+}
+
 char
 xmodem_ingest(struct xmodem_state *s, char c)
 {
@@ -21,36 +31,29 @@ xmodem_ingest(struct xmodem_state *s, char c)
 			break;
 		case 0x4:
 			// End of Transmission
-			ret = 0x06;
 			goto complete;
 			break;
 		case 0x17:
 			// End of Transmission Block
-			// ACK
-			ret = 0x06;
 			goto complete;
 			break;
 		case 0x18:
 			// Cancel
-			ret = 'C';
-			goto complete;
+			return xmodem_cancel(s);
 			break;
 		default:
-			// NACK
 			goto nack;
 		}
 		break;
 	case 1:
 		// Sequence
 		if (c != s->seq) {
-			// NACK
 			goto nack;
 		}
 		break;
 	case 2:
 		// Sequence Recip
 		if (c != 0xFF - (s->seq)) {
-			// NACK
 			goto nack;
 		}
 
@@ -58,14 +61,12 @@ xmodem_ingest(struct xmodem_state *s, char c)
 	case 131:
 		// CRC
 		if (c != ((s->crc >> 8) & 0xFF)) {
-			// NACK
 			goto nack;
 		}
 
 		break;
 	case 132:
 		if (c != (s->crc & 0xFF)) {
-			// NACK
 			goto nack;
 		}
 
@@ -73,9 +74,7 @@ xmodem_ingest(struct xmodem_state *s, char c)
 
 		// XXX - Use the valid packet.
 
-		// ACK
-		ret = 0x06;
-		goto next;
+		goto ack;
 		break;
 	default:
 		// Payload
@@ -103,6 +102,8 @@ nack:
 	goto next;
 complete:
 	s->seq = 1;
+ack:
+	ret = 0x06;
 next:
 	s->idx = 0;
 	return ret;
