@@ -17,14 +17,11 @@ extern volatile uint32_t tick;
 #define STATE_WAITING	0
 
 struct _xmodem_state {
-	USART_TypeDef *usart;
 	uint8_t idx;
 	uint8_t seq;
 	int crc;
 	char packet[128];
 	size_t packetpos;
-	char buf[4096];
-	size_t bufpos;
 };
 
 char xmodem_ingest(struct _xmodem_state *s, char c);
@@ -39,10 +36,8 @@ xmodem_receive(USART_TypeDef *usart)
 	char resp = 'C';
 	int count = 0;
 
-	state.usart = usart;
 	state.seq = 1;
 	state.idx = 0;
-	state.bufpos = 0;
 
 	// Force a timeout.
 	timeout = 0;
@@ -50,7 +45,7 @@ xmodem_receive(USART_TypeDef *usart)
 	while (1) {
 		if (usart->ISR & USART_ISR_RXNE) {
 			_RESET_TIMEOUT();
-			resp = xmodem_ingest(&state, state.usart->RDR);
+			resp = xmodem_ingest(&state, usart->RDR);
 
 			if (resp != 0) {
 				usart_send(usart, resp);
@@ -140,11 +135,8 @@ xmodem_ingest(struct _xmodem_state *s, char c)
 
 		s->seq += 1;
 
-		// Save this packet.
-		for (int i = 0; i < s->packetpos; i++) {
-			s->buf[s->bufpos] = s->packet[i];
-			s->bufpos += 1;
-		}
+		// XXX - Use the valid packet.
+
 		// ACK
 		ret = 0x06;
 		goto next;
@@ -175,7 +167,6 @@ nack:
 	goto next;
 complete:
 	s->seq = 1;
-	s->bufpos = 0;
 next:
 	s->idx = 0;
 	return ret;
