@@ -29,14 +29,13 @@ int
 xmodem_receive(USART_TypeDef *usart)
 {
 	struct xmodem_state state;
+	char resp;
 	uint32_t timeout;
 
 #define _RESET_TIMEOUT() timeout = tick + (3 * 1000)
-	char resp = 'C';
 	int count = 0;
 
-	state.seq = 1;
-	state.idx = 0;
+	resp = xmodem_cancel(&state);
 
 	// Force a timeout.
 	timeout = 0;
@@ -59,9 +58,8 @@ xmodem_receive(USART_TypeDef *usart)
 			count += 1;
 
 			if (count >= 3) {
-				resp = 'C';
-				state.seq = 1;
-				state.idx = 0;
+				resp = xmodem_cancel(&state);
+
 				count = 0;
 			}
 		}
