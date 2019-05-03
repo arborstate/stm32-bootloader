@@ -10,6 +10,7 @@
 char
 xmodem_cancel(struct xmodem_state *s)
 {
+	s->state = XMODEM_STATE_CANCEL;
 	s->seq = 1;
 	s->idx = 0;
 
@@ -26,15 +27,18 @@ xmodem_ingest(struct xmodem_state *s, char c)
 		switch (c) {
 		case 0x1:
 			// SOH
+			s->state = XMODEM_STATE_SOH;
 			s->crc = 0;
 			s->packetpos = 0;
 			break;
 		case 0x4:
 			// End of Transmission
+			s->state = XMODEM_STATE_EOT;
 			goto complete;
 			break;
 		case 0x17:
 			// End of Transmission Block
+			s->state = XMODEM_STATE_EOB;
 			goto complete;
 			break;
 		case 0x18:
@@ -46,6 +50,7 @@ xmodem_ingest(struct xmodem_state *s, char c)
 		}
 		break;
 	case 1:
+		s->state = XMODEM_STATE_RECV;
 		// Sequence
 		if (c != s->seq) {
 			goto nack;
@@ -71,6 +76,8 @@ xmodem_ingest(struct xmodem_state *s, char c)
 		}
 
 		s->seq += 1;
+
+		s->state = XMODEM_STATE_EOP;
 
 		// XXX - Use the valid packet.
 
