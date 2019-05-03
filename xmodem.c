@@ -101,7 +101,6 @@ xmodem_ingest(struct xmodem_state *s, char c)
 	}
 
 	s->idx += 1;
-	s->idx %= 133;
 
 	return 0;
 nack:
