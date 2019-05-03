@@ -108,9 +108,13 @@ _xmodem_flash(USART_TypeDef *usart)
 					// Wait for the write to finish.
 					do {} while (FLASH->SR & FLASH_SR_BSY);
 
+					// XXX - Disable this for now, since EOP
+					// isn't being asserted anymore?  What?
+#if 0
 					// Check for EOP in FLASH SR, and clear bit.
 					do {} while (!(FLASH->SR & FLASH_SR_EOP));
 					FLASH->SR &= ~FLASH_SR_EOP;
+#endif
 
 					// Turn off flash reprogramming.
 					FLASH->CR &= ~FLASH_CR_PG;
