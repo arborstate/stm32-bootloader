@@ -26,7 +26,7 @@ usart_send(USART_TypeDef *usart, char c)
 }
 
 int
-xmodem_receive(USART_TypeDef *usart)
+_xmodem_flash(USART_TypeDef *usart)
 {
 	struct xmodem_state state;
 	char resp;
@@ -39,11 +39,110 @@ xmodem_receive(USART_TypeDef *usart)
 
 	// Force a timeout.
 	timeout = 0;
+	volatile uint16_t *addr;
+	addr = (uint16_t *)0x08000800;
 
 	while (1) {
 		if (usart->ISR & USART_ISR_RXNE) {
 			_RESET_TIMEOUT();
 			resp = xmodem_ingest(&state, usart->RDR);
+
+			switch (state.state) {
+			case XMODEM_STATE_CANCEL:
+				// Start writing after the first page.
+				addr = (uint16_t *)0x08000800;
+				break;
+
+			case XMODEM_STATE_SOH:
+				break;
+
+			case XMODEM_STATE_EOP: {
+				if (FLASH->CR & FLASH_CR_LOCK) {
+					FLASH->KEYR = 0x45670123;
+					FLASH->KEYR = 0xCDEF89AB;
+				}
+
+
+				// Erase each page at the 2k boundary.
+				if (((uint32_t)addr % 2048) == 0) {
+					// Wait while the flash module does its thing.
+					do {} while (FLASH->SR & FLASH_SR_BSY);
+
+					// Turn on flash page erase.
+					FLASH->CR |= FLASH_CR_PER;
+
+					FLASH->AR = (uint32_t)addr;
+
+					// Kick off the erase.
+					FLASH->CR |= FLASH_CR_STRT;
+
+					// Wait while the flash module does its thing.
+					do {} while (FLASH->SR & FLASH_SR_BSY);
+					// ... per the datasheet, give the flash
+					// controller a second chance to be sure.
+					do {} while (FLASH->SR & FLASH_SR_BSY);
+
+					// Check for EOP in FLASH SR, and clear bit.
+					do {} while (!(FLASH->SR & FLASH_SR_EOP));
+					FLASH->SR &= ~FLASH_SR_EOP;
+
+					// Turn off flash page erase.
+					FLASH->CR &= ~FLASH_CR_PER;
+				}
+
+				// XXX - Our xmodem packet is always 128 bytes.
+				for (int i = 0; i < state.packetpos; i += 2) {
+					uint16_t v = state.packet[i] | (state.packet[i + 1] << 8);
+
+					// Wait while the flash module does its thing.
+					do {} while (FLASH->SR & FLASH_SR_BSY);
+
+					// Turn on flash reprogramming.
+					FLASH->CR |= FLASH_CR_PG;
+
+					// Clear any previous errors.
+					FLASH->SR |= FLASH_SR_PGERR;
+
+					*addr = v;
+
+					// Wait for the write to finish.
+					do {} while (FLASH->SR & FLASH_SR_BSY);
+
+					// Check for EOP in FLASH SR, and clear bit.
+					do {} while (!(FLASH->SR & FLASH_SR_EOP));
+					FLASH->SR &= ~FLASH_SR_EOP;
+
+					// Turn off flash reprogramming.
+					FLASH->CR &= ~FLASH_CR_PG;
+
+					if (FLASH->SR & FLASH_SR_PGERR) {
+						resp = xmodem_cancel(&state);
+						break;
+					}
+
+					if (*addr != v) {
+						// We failed to write the value.  Bail.
+						resp = xmodem_cancel(&state);
+						break;
+					}
+
+					addr++;
+				}
+
+				// Wait for the write to finish.
+				do {} while (FLASH->SR & FLASH_SR_BSY);
+
+				break;
+			}
+			case XMODEM_STATE_EOT:
+			case XMODEM_STATE_EOB:
+				// Lock the flash back up.
+				FLASH->CR |= FLASH_CR_LOCK;
+				addr = (uint16_t *)0x08000800;
+				break;
+			default:
+				break;
+			}
 
 			if (resp != 0) {
 				usart_send(usart, resp);
@@ -59,10 +158,12 @@ xmodem_receive(USART_TypeDef *usart)
 
 			if (count >= 3) {
 				resp = xmodem_cancel(&state);
+				addr = (uint16_t *)0x08000800;
 
 				count = 0;
 			}
 		}
+
 	}
 #undef _RESET_TIMEOUT
 }
@@ -127,9 +228,7 @@ main(void)
 
 	// test_reflash();
 
-
-
-	xmodem_receive(USART3);
+	_xmodem_flash(USART3);
 
 	// Stay Here, Forever.
 	while (1) {
