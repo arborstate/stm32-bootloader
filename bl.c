@@ -6,6 +6,9 @@
 #include "bxcan.h"
 #include "xmodem.h"
 
+// XXX - I wonder why this isn't defined anywhere.
+#define FLASH_PAGE_SIZE 2048
+
 const uint32_t *app_addr = (uint32_t *)0x08000800;
 
 bxcan_state_t caniface;
@@ -68,7 +71,7 @@ _xmodem_flash(USART_TypeDef *usart)
 
 
 				// Erase each page at the 2k boundary.
-				if (((uint32_t)addr % 2048) == 0) {
+				if (((uint32_t)addr % FLASH_PAGE_SIZE) == 0) {
 					// Wait while the flash module does its thing.
 					do {} while (FLASH->SR & FLASH_SR_BSY);
 
