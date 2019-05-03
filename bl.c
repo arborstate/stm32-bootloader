@@ -6,6 +6,8 @@
 #include "bxcan.h"
 #include "xmodem.h"
 
+const uint32_t *app_addr = (uint32_t *)0x08000800;
+
 bxcan_state_t caniface;
 
 volatile uint32_t tick = 0;
@@ -40,7 +42,7 @@ _xmodem_flash(USART_TypeDef *usart)
 	// Force a timeout.
 	timeout = 0;
 	volatile uint16_t *addr;
-	addr = (uint16_t *)0x08000800;
+	addr = (uint16_t *)app_addr;
 
 	while (1) {
 		if (usart->ISR & USART_ISR_RXNE) {
@@ -50,7 +52,7 @@ _xmodem_flash(USART_TypeDef *usart)
 			switch (state.state) {
 			case XMODEM_STATE_CANCEL:
 				// Start writing after the first page.
-				addr = (uint16_t *)0x08000800;
+				addr = (uint16_t *)app_addr;
 				break;
 
 			case XMODEM_STATE_SOH:
@@ -142,7 +144,9 @@ _xmodem_flash(USART_TypeDef *usart)
 			case XMODEM_STATE_EOB:
 				// Lock the flash back up.
 				FLASH->CR |= FLASH_CR_LOCK;
-				addr = (uint16_t *)0x08000800;
+				addr = (uint16_t *)app_addr;
+
+				done = 1;
 				break;
 			default:
 				break;
@@ -162,7 +166,7 @@ _xmodem_flash(USART_TypeDef *usart)
 
 			if (count >= 3) {
 				resp = xmodem_cancel(&state);
-				addr = (uint16_t *)0x08000800;
+				addr = (uint16_t *)app_addr;
 
 				count = 0;
 			}
