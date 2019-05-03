@@ -62,8 +62,8 @@ _xmodem_flash(USART_TypeDef *usart)
 
 			case XMODEM_STATE_EOP: {
 				if (FLASH->CR & FLASH_CR_LOCK) {
-					FLASH->KEYR = 0x45670123;
-					FLASH->KEYR = 0xCDEF89AB;
+					FLASH->KEYR = FLASH_KEY1;
+					FLASH->KEYR = FLASH_KEY2;
 				}
 
 
