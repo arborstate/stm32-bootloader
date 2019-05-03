@@ -44,7 +44,9 @@ _xmodem_flash(USART_TypeDef *usart)
 	volatile uint16_t *addr;
 	addr = (uint16_t *)app_addr;
 
-	while (1) {
+	int done = 0;
+
+	while (!done) {
 		if (usart->ISR & USART_ISR_RXNE) {
 			_RESET_TIMEOUT();
 			resp = xmodem_ingest(&state, usart->RDR);
@@ -238,8 +240,20 @@ main(void)
 
 	_xmodem_flash(USART3);
 
-	// Stay Here, Forever.
+	__disable_irq();
+	SysTick->CTRL = 0;
+	SysTick->LOAD = 0;
+	SysTick->VAL = 0;
+
+	// Jump to the application.
+	{
+		void (*app_entry)(void) = (void(*)(void))(*(app_addr + 1));
+		__set_MSP(*app_addr);
+		app_entry();
+	}
+
 	while (1) {
+		// We should never get here.
 	}
 }
 
