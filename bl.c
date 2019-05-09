@@ -9,8 +9,15 @@
 // XXX - I wonder why this isn't defined anywhere.
 #define FLASH_PAGE_SIZE 2048
 
-const uint32_t *app_addr = (uint32_t *)0x08000800;
+#define USE_APP_IMAGE 1
+struct _app_header {
+	uint32_t offset;
+	uint32_t info;
+	uint32_t size;
+	uint32_t crc;
+};
 
+const uint32_t *app_addr = (uint32_t *)0x08001000;
 bxcan_state_t caniface;
 
 volatile uint32_t tick = 0;
@@ -23,11 +30,28 @@ SysTick_Handler(void)
 	return;
 }
 
+void sleepms(int ms)
+{
+	int future = tick + ms;
+
+	do {} while (tick < future);
+}
+
 void
 usart_send(USART_TypeDef *usart, char c)
 {
 	do {} while (!(usart->ISR & USART_ISR_TXE));
 	usart->TDR = c;
+}
+
+void
+usart_send_string(USART_TypeDef *usart, const char *s)
+{
+	size_t len = strlen(s);
+
+	for (int i = 0; i < len; i++) {
+		usart_send(usart, s[i]);
+	}
 }
 
 int
@@ -239,18 +263,62 @@ main(void)
 		bxcan_reconfigure(&caniface);
 	}
 
-	// test_reflash();
+#ifdef USE_APP_IMAGE
+	RCC->AHBENR |= RCC_AHBENR_CRCEN;
 
-	_xmodem_flash(USART3);
+	struct _app_header *hdr = (struct _app_header *)app_addr;
 
-	SysTick->CTRL = 0;
-	SysTick->LOAD = 0;
-	SysTick->VAL = 0;
+	int need_reflash;
 
+	do {
+		need_reflash = 0;
+
+		if (hdr->info != 0 ||
+		    hdr->size == 0xFFFFFFFF ||
+		    hdr->offset == 0xFFFFFFFF) {
+			need_reflash = 1;
+		}
+
+		if (!need_reflash) {
+			CRC->CR |= CRC_CR_RESET;
+
+			sleepms(5);
+
+			_SET_REG(CRC->CR, CRC_CR_REV_IN, 3);
+			_SET_REG(CRC->CR, CRC_CR_REV_OUT, 1);
+
+			uint32_t *data = ((uint32_t *)app_addr) + (sizeof(struct _app_header) / 4);
+
+			for (int i = 0; i < (hdr->size / 4); i++) {
+				CRC->DR = *data;
+				data++;
+			}
+
+			uint32_t output_crc = CRC->DR ^ 0xFFFFFFFF;
+			if (output_crc != hdr->crc) {
+				need_reflash = 1;
+			}
+		}
+
+		if (need_reflash) {
+			_xmodem_flash(USART3);
+		}
+	} while (need_reflash);
+
+
+	uint32_t *app_exec_addr  = ((uint32_t *)app_addr) + (hdr->offset / 4);
+#else
+	uint32_t *app_exec_addr  = ((uint32_t *)app_addr);
+#endif
 	// Jump to the application.
 	{
-		void (*app_entry)(void) = (void(*)(void))(*(app_addr + 1));
-		__set_MSP(*app_addr);
+
+		SysTick->CTRL = 0;
+		SysTick->LOAD = 0;
+		SysTick->VAL = 0;
+
+		void (*app_entry)(void) = (void(*)(void))(*(app_exec_addr + 1));
+		__set_MSP(*app_exec_addr);
 		app_entry();
 	}
 
