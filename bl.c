@@ -243,7 +243,6 @@ main(void)
 
 	_xmodem_flash(USART3);
 
-	__disable_irq();
 	SysTick->CTRL = 0;
 	SysTick->LOAD = 0;
 	SysTick->VAL = 0;
